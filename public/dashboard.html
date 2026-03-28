@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VetoVault | Optimistic Treasury Safeguard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/index.umd.min.js"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; line-height: 1.5; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .card { background: #1e293b; border-radius: 12px; padding: 24px; margin-bottom: 20px; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .btn { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: background 0.2s; }
+        .btn:hover { background: #2563eb; }
+        .btn:disabled { background: #475569; cursor: not-allowed; }
+        .btn-veto { background: #ef4444; }
+        .btn-veto:hover { background: #dc2626; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+        .badge-active { background: #10b981; color: white; }
+        .badge-expired { background: #64748b; color: white; }
+        .prop-row { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid #334155; }
+        .prop-row:last-child { border-bottom: none; }
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .label { color: #94a3b8; font-size: 14px; }
+        .value { font-size: 18px; font-weight: bold; }
+        #status { font-size: 14px; color: #94a3b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>VetoVault</h1>
+            <button id="connectBtn" class="btn">Connect Wallet</button>
+        </div>
+
+        <div class="stats">
+            <div class="card">
+                <div class="label">Your Stake Age</div>
+                <div id="userAge" class="value">Not Connected</div>
+            </div>
+            <div class="card">
+                <div class="label">Veto Threshold</div>
+                <div id="threshold" class="value">--</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Active Challenge Windows</h2>
+            <div id="proposalList">
+                <p style="text-align: center; color: #94a3b8;">Connect wallet to view pending executions.</p>
+            </div>
+        </div>
+
+        <div id="status"></div>
+    </div>
+
+    <script>
+        const VAULT_ADDR = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; // Default Hardhat
+        const VAULT_ABI = [
+            "function proposals(uint256) view returns (uint256 eta, bool executed, bool vetoed, uint256 vetoPower, address target, bytes data, uint256 value)",
+            "function vetoThreshold() view returns (uint256)",
+            "function castVeto(uint256 proposalId) external",
+            "function userStakeTime(address) view returns (uint256)",
+            "event ProposalQueued(uint256 indexed proposalId, uint256 eta)"
+        ];
+
+        let provider, signer, vault;
+
+        async function connect() {
+            if (!window.ethereum) return alert("Install MetaMask");
+            provider = new ethers.BrowserProvider(window.ethereum);
+            signer = await provider.getSigner();
+            const addr = await signer.getAddress();
+            document.getElementById('connectBtn').innerText = addr.slice(0,6) + "..." + addr.slice(-4);
+            
+            vault = new ethers.Contract(VAULT_ADDR, VAULT_ABI, signer);
+            loadData(addr);
+        }
+
+        async function loadData(userAddr) {
+            try {
+                const threshold = await vault.vetoThreshold();
+                document.getElementById('threshold').innerText = ethers.formatEther(threshold) + " GOV";
+
+                const stakeStartTime = await vault.userStakeTime(userAddr);
+                if (stakeStartTime == 0n) {
+                    document.getElementById('userAge').innerText = "No Stake Found";
+                } else {
+                    const ageDays = Math.floor((Date.now() / 1000 - Number(stakeStartTime)) / 86400);
+                    document.getElementById('userAge').innerText = ageDays + " Days";
+                }
+
+                // In a real app, we'd query events. For MVP, we check IDs 1-5
+                const list = document.getElementById('proposalList');
+                list.innerHTML = "";
+                
+                for (let i = 1; i <= 5; i++) {
+                    const p = await vault.proposals(i);
+                    if (p.eta === 0n) continue;
+
+                    const now = Math.floor(Date.now() / 1000);
+                    const timeLeft = Number(p.eta) - now;
+                    const isExpired = timeLeft <= 0;
+
+                    const div = document.createElement('div');
+                    div.className = 'prop-row';
+                    div.innerHTML = `
+                        <div>
+                            <strong>Prop #${i}</strong><br/>
+                            <small>${p.target.slice(0,10)}...</small>
+                        </div>
+                        <div>
+                            <span class="badge ${isExpired ? 'badge-expired' : 'badge-active'}">
+                                ${isExpired ? 'Window Closed' : Math.floor(timeLeft/3600) + 'h remaining'}
+                            </span>
+                        </div>
+                        <button class="btn btn-veto" onclick="veto(${i})" ${isExpired || p.vetoed ? 'disabled' : ''}>
+                            ${p.vetoed ? 'Vetoed' : 'Veto'}
+                        </button>
+                    `;
+                    list.appendChild(div);
+                }
+            } catch (e) {
+                console.error(e);
+                document.getElementById('status').innerText = "Error loading data. Is the contract deployed?";
+            }
+        }
+
+        async function veto(id) {
+            try {
+                const tx = await vault.castVeto(id);
+                document.getElementById('status').innerText = "Vetoing... " + tx.hash;
+                await tx.wait();
+                document.getElementById('status').innerText = "Veto Cast!";
+                loadData(await signer.getAddress());
+            } catch (e) {
+                alert(e.reason || e.message);
+            }
+        }
+
+        document.getElementById('connectBtn').onclick = connect;
+    </script>
+</body>
+</html>
