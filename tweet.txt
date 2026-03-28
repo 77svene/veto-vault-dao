@@ -1,0 +1,7 @@
+Just shipped VetoVault: Optimistic Treasury Safeguard for Hackonomics 2026 - DAO Tooling Track!
+
+Prevents 'governance attacks' by allowing a minority of long-term stakers to optimistically pause treasury execution via a time-locked challenge period.
+
+https://github.com/77svene/veto-vault-dao
+
+#hackathon #AI #Web3 #DeFi @lablabai

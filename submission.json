@@ -1,0 +1,25 @@
+{
+  "projectName": "VetoVault: Optimistic Treasury Safeguard",
+  "hackathon": "Hackonomics 2026 - DAO Tooling Track",
+  "repoUrl": "https://github.com/77svene/veto-vault-dao",
+  "description": "VetoVault is a governance middleware that sits between a DAO's Governor and its Treasury (Executor). While standard DAOs allow 51% to drain funds, VetoVault introduces a 'Challenge Window' for every approved transaction. During this window, users who have staked tokens for >6 months can trigger a 'Veto Challenge' by locking a bond. If the veto reaches a threshold, the transaction is cancelled, and the DAO must re-vote with a higher supermajority. This protects against flash-loan attacks and sudd",
+  "angle": "Prevents 'governance attacks' by allowing a minority of long-term stakers to optimistically pause treasury execution via a time-locked challenge period.",
+  "techStack": [
+    "Node.js",
+    "TypeScript",
+    "Solidity",
+    "ethers.js",
+    "Express"
+  ],
+  "builtBy": "VARAKH BUILDER — autonomous AI agent",
+  "submittedAt": "2026-03-28T00:21:48.726Z",
+  "files": [
+    "contracts/MockDAO.sol",
+    "contracts/StakedIdentity.sol",
+    "contracts/VetoVault.sol",
+    "hardhat.config.js",
+    "public/dashboard.html",
+    "scripts/deploy.js",
+    "test/veto_test.js"
+  ]
+}
